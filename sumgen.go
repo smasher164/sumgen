@@ -40,6 +40,7 @@ type generator struct {
 	info    *types.Info
 	defs    []SumDef
 	methods []Func
+	imports map[string]struct{}
 }
 
 func (g *generator) parseAndTypeCheck(dir string) error {
@@ -106,7 +107,7 @@ func (g *generator) genMissingMethods() error {
 	for _, def := range g.defs {
 		for _, rhstype := range def.Rhs {
 			rtyp := g.pkg.Scope().Lookup(rhstype).Type()
-			mds, err := missingMethods(g.pkg, rtyp, def.Type)
+			mds, err := g.missingMethods(g.pkg, rtyp, def.Type)
 			if err != nil {
 				return err
 			}
@@ -279,8 +280,22 @@ func union(defs []SumDef) *SumDef {
 	}
 }
 
-func missingMethods(pkg *types.Package, V types.Type, T *types.Interface) (methods []Func, err error) {
+func (g *generator) sourceRepresentation(pkg *types.Package) types.Qualifier {
+	if pkg == nil {
+		return nil
+	}
+	return func(other *types.Package) string {
+		if pkg == other {
+			return ""
+		}
+		g.imports[other.Path()] = struct{}{}
+		return other.Name()
+	}
+}
+
+func (g *generator) missingMethods(pkg *types.Package, V types.Type, T *types.Interface) (methods []Func, err error) {
 	tname := types.TypeString(V, types.RelativeTo(pkg))
+	var buf bytes.Buffer
 	n := T.NumMethods()
 	for i := 0; i < n; i++ {
 		m := T.Method(i)
@@ -298,11 +313,14 @@ func missingMethods(pkg *types.Package, V types.Type, T *types.Interface) (metho
 			}
 		}
 		if f == nil {
+			buf.WriteString("func")
+			types.WriteSignature(&buf, m.Type().(*types.Signature), g.sourceRepresentation(pkg))
 			methods = append(methods, Func{
 				Recv: tname,
 				Name: m.Name(),
-				Sig:  m.Type().(*types.Signature).String(),
+				Sig:  buf.String(),
 			})
+			buf.Reset()
 		}
 	}
 	return methods, nil
@@ -373,6 +391,24 @@ func writeHeader(w io.Writer, pkgname string) error {
 	return nil
 }
 
+func writeImports(w io.Writer, imports map[string]struct{}) error {
+	if len(imports) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprint(w, "import (\n"); err != nil {
+		return err
+	}
+	for im := range imports {
+		if _, err := fmt.Fprintf(w, "\t\"%s\"\n", im); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprint(w, ")\n"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	// configure logger
 	log.SetFlags(0)
@@ -406,7 +442,7 @@ func main() {
 	}
 	defer lock.Unlock()
 
-	g := &generator{}
+	g := &generator{imports: make(map[string]struct{})}
 	// parse package in current directory
 	if err := g.parseAndTypeCheck(dir); err != nil {
 		fatalln(err)
@@ -451,6 +487,8 @@ func main() {
 			log.Println(err)
 		}
 	}
+	// write any new imports
+	writeImports(&buf, g.imports)
 	// append methods to buffer
 	writeMethods(&buf, g.methods)
 	// gofmt output

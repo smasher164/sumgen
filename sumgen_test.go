@@ -237,7 +237,7 @@ func TestMissingMethods(t *testing.T) {
 		if err := ioutil.WriteFile(fname, prog, 0755); err != nil {
 			t.Fatal(err)
 		}
-		g := generator{}
+		g := generator{imports: make(map[string]struct{})}
 		if err := g.parseAndTypeCheck(dir); err != nil {
 			t.Fatal(err)
 		}

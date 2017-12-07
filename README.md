@@ -3,7 +3,7 @@
 go get -u github.com/smasher164/sumgen
 ```
 
-Usage: `sumgen` is a tool intended `go generate`. An example declaration of a sum-type would be
+Usage: `sumgen` is a tool intended for `go generate`. An example declaration of a sum-type would be
 
 ```
 package main
