@@ -18,26 +18,26 @@ var writeTests = []struct {
 	want string
 }{
 	{
-		in:   []Func{{"a", "expr", "func()"}},
+		in:   []Func{{false, "a", "expr", "func()"}},
 		want: "func (aa a) expr() { panic(\"default implementation\") }\n",
 	},
 	{
-		in:   []Func{{"日", "expr", "func()"}},
+		in:   []Func{{false, "日", "expr", "func()"}},
 		want: "func (日日 日) expr() { panic(\"default implementation\") }\n",
 	},
 	{
-		in:   []Func{{"aa", "expr", "func()"}},
+		in:   []Func{{false, "aa", "expr", "func()"}},
 		want: "func (a aa) expr() { panic(\"default implementation\") }\n",
 	},
 	{
-		in:   []Func{{"日本語", "expr", "func()"}},
+		in:   []Func{{false, "日本語", "expr", "func()"}},
 		want: "func (日 日本語) expr() { panic(\"default implementation\") }\n",
 	},
 	{
 		in: []Func{
-			{"日本語", "A", "func()"},
-			{"日", "A", "func()"},
-			{"日本", "A", "func()"},
+			{false, "日本語", "A", "func()"},
+			{false, "日", "A", "func()"},
+			{false, "日本", "A", "func()"},
 		},
 		want: "func (日 日本語) A() { panic(\"default implementation\") }\n" +
 			"func (日日 日) A() { panic(\"default implementation\") }\n" +
@@ -45,9 +45,9 @@ var writeTests = []struct {
 	},
 	{
 		in: []Func{
-			{"日本語", "A", "func()"},
-			{"日本語", "B", "func()"},
-			{"日本語", "C", "func()"},
+			{false, "日本語", "A", "func()"},
+			{false, "日本語", "B", "func()"},
+			{false, "日本語", "C", "func()"},
 		},
 		want: "func (日 日本語) A() { panic(\"default implementation\") }\n" +
 			"func (日 日本語) B() { panic(\"default implementation\") }\n" +
@@ -55,9 +55,9 @@ var writeTests = []struct {
 	},
 	{
 		in: []Func{
-			{"日本語", "A", "func(a, b int) int"},
-			{"日本語", "B", "func(a ...func(int))"},
-			{"日本語", "C", "func(b ...interface{}) (a int)"},
+			{false, "日本語", "A", "func(a, b int) int"},
+			{false, "日本語", "B", "func(a ...func(int))"},
+			{false, "日本語", "C", "func(b ...interface{}) (a int)"},
 		},
 		want: "func (日 日本語) A(a, b int) int { panic(\"default implementation\") }\n" +
 			"func (日 日本語) B(a ...func(int)) { panic(\"default implementation\") }\n" +
@@ -65,9 +65,9 @@ var writeTests = []struct {
 	},
 	{
 		in: []Func{
-			{"*日本語", "A", "func(a, b int) *int"},
-			{"*日本語", "B", "func(a ...func(int))"},
-			{"*日本語", "C", "func(b ...interface{}) (a int)"},
+			{true, "日本語", "A", "func(a, b int) *int"},
+			{true, "日本語", "B", "func(a ...func(int))"},
+			{true, "日本語", "C", "func(b ...interface{}) (a int)"},
 		},
 		want: "func (日 *日本語) A(a, b int) *int { panic(\"default implementation\") }\n" +
 			"func (日 *日本語) B(a ...func(int)) { panic(\"default implementation\") }\n" +
@@ -106,7 +106,7 @@ type A interface {
 
 type B int
 `,
-		want: []Func{{"B", "a", "func()"}},
+		want: []Func{{false, "B", "a", "func()"}},
 	},
 	{
 		in: `
@@ -122,8 +122,8 @@ type C struct {
 }
 `,
 		want: []Func{
-			{"B", "a", "func()"},
-			{"C", "a", "func()"},
+			{false, "B", "a", "func()"},
+			{false, "C", "a", "func()"},
 		},
 	},
 	{
@@ -140,8 +140,8 @@ type C struct {
 }
 `,
 		want: []Func{
-			{"*B", "a", "func()"},
-			{"*C", "a", "func()"},
+			{true, "B", "a", "func()"},
+			{true, "C", "a", "func()"},
 		},
 	},
 	{
@@ -161,8 +161,8 @@ type C struct {
 }
 `,
 		want: []Func{
-			{"B", "a", "func()"},
-			{"C", "a", "func()"},
+			{false, "B", "a", "func()"},
+			{false, "C", "a", "func()"},
 		},
 	},
 	{
@@ -186,9 +186,9 @@ type C struct {
 type d func(int)
 `,
 		want: []Func{
-			{"B", "a", "func()"},
-			{"C", "a", "func()"},
-			{"d", "a", "func()"},
+			{false, "B", "a", "func()"},
+			{false, "C", "a", "func()"},
+			{false, "d", "a", "func()"},
 		},
 	},
 	{
@@ -209,12 +209,12 @@ type C struct {
 type d func(int)
 `,
 		want: []Func{
-			{"B", "a", "func()"},
-			{"B", "b", "func(int) int"},
-			{"C", "a", "func()"},
-			{"C", "b", "func(int) int"},
-			{"d", "a", "func()"},
-			{"d", "b", "func(int) int"},
+			{false, "B", "a", "func()"},
+			{false, "B", "b", "func(int) int"},
+			{false, "C", "a", "func()"},
+			{false, "C", "b", "func(int) int"},
+			{false, "d", "a", "func()"},
+			{false, "d", "b", "func(int) int"},
 		},
 	},
 	{
@@ -240,14 +240,14 @@ type E interface {
 	varargs(v ...interface{})
 }`,
 		want: []Func{
-			{"B", "a", "func()"},
-			{"B", "b", "func(int) int"},
-			{"C", "a", "func()"},
-			{"C", "b", "func(int) int"},
-			{"d", "a", "func()"},
-			{"d", "b", "func(int) int"},
-			{"B", "varargs", "func(v ...interface{})"},
-			{"d", "varargs", "func(v ...interface{})"},
+			{false, "B", "a", "func()"},
+			{false, "B", "b", "func(int) int"},
+			{false, "C", "a", "func()"},
+			{false, "C", "b", "func(int) int"},
+			{false, "d", "a", "func()"},
+			{false, "d", "b", "func(int) int"},
+			{false, "B", "varargs", "func(v ...interface{})"},
+			{false, "d", "varargs", "func(v ...interface{})"},
 		},
 	},
 }

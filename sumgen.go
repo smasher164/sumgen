@@ -23,12 +23,18 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+type Concrete struct {
+	S    string
+	Addr bool
+}
+
 type SumDef struct {
 	Type *types.Interface
-	Rhs  []string
+	Rhs  []Concrete
 }
 
 type Func struct {
+	Addr bool
 	Recv string
 	Name string
 	Sig  string
@@ -106,13 +112,8 @@ func (g *generator) parseSumDefs() error {
 func (g *generator) genMissingMethods() error {
 	for _, def := range g.defs {
 		for _, rhstype := range def.Rhs {
-			var addressable bool
-			if rhstype[0] == '*' {
-				addressable = true
-				rhstype = rhstype[1:]
-			}
-			rtyp := g.pkg.Scope().Lookup(rhstype).Type()
-			mds, err := g.missingMethods(g.pkg, addressable, rtyp, def.Type)
+			rtyp := g.pkg.Scope().Lookup(rhstype.S).Type()
+			mds, err := g.missingMethods(g.pkg, rhstype.Addr, rtyp, def.Type)
 			if err != nil {
 				return err
 			}
@@ -211,7 +212,7 @@ func scanDefs(info *types.Info, doc *ast.CommentGroup, ts *ast.TypeSpec) (def *S
 			}
 			i++
 
-			var rhs []string
+			var rhs []Concrete
 			// parse rhs of definition
 			for {
 				r, w := utf8.DecodeRuneInString(com[i:])
@@ -225,6 +226,7 @@ func scanDefs(info *types.Info, doc *ast.CommentGroup, ts *ast.TypeSpec) (def *S
 				if com[i] == '*' {
 					// accept a pointer receiver
 					ptrRec = true
+					offs++
 					i++
 				}
 				if ei := ident(com, i); ei == i {
@@ -235,7 +237,10 @@ func scanDefs(info *types.Info, doc *ast.CommentGroup, ts *ast.TypeSpec) (def *S
 				} else {
 					i = ei
 				}
-				rhs = append(rhs, com[offs:i]) // ident
+				rhs = append(rhs, struct {
+					S    string
+					Addr bool
+				}{com[offs:i], ptrRec}) // ident
 				r, w = utf8.DecodeRuneInString(com[i:])
 				for unicode.IsSpace(r) {
 					i += w
@@ -278,13 +283,13 @@ func union(defs []SumDef) *SumDef {
 	if len(defs) == 0 {
 		return nil
 	}
-	set := make(map[string]struct{})
-	var rhs []string
+	set := make(map[Concrete]struct{})
+	var rhs []Concrete
 	for _, def := range defs {
-		for _, s := range def.Rhs {
-			if _, ok := set[s]; !ok {
-				set[s] = struct{}{}
-				rhs = append(rhs, s)
+		for _, r := range def.Rhs {
+			if _, ok := set[r]; !ok {
+				set[r] = struct{}{}
+				rhs = append(rhs, r)
 			}
 		}
 	}
@@ -329,10 +334,8 @@ func (g *generator) missingMethods(pkg *types.Package, addressable bool, V types
 		if f == nil {
 			buf.WriteString("func")
 			types.WriteSignature(&buf, m.Type().(*types.Signature), g.sourceRepresentation(pkg))
-			if addressable {
-				tname = "*" + tname
-			}
 			methods = append(methods, Func{
+				Addr: addressable,
 				Recv: tname,
 				Name: m.Name(),
 				Sig:  buf.String(),
@@ -354,7 +357,7 @@ func validate(methods []Func) ([]Func, error) {
 		for j := i + 1; j < len(methods); j++ {
 			if methods[i].Name == methods[j].Name &&
 				methods[i].Recv == methods[j].Recv {
-				if methods[i].Sig == methods[j].Sig {
+				if methods[i].Sig == methods[j].Sig && methods[i].Addr == methods[j].Addr {
 					methods = append(methods[:j], methods[j+1:]...)
 				} else {
 					return nil, fmt.Errorf("method %s already declared for type %s", methods[j].Name, methods[j].Recv)
@@ -365,7 +368,7 @@ func validate(methods []Func) ([]Func, error) {
 	return methods, nil
 }
 
-const stub = "func ({{.Recvar}} {{.Recv}}) " +
+const stub = "func ({{.Recvar}} {{.Ptr}}{{.Recv}}) " +
 	"{{.Name}}{{.Signature}} " +
 	"{ panic(\"default implementation\") }\n"
 
@@ -382,12 +385,17 @@ func writeMethods(w io.Writer, methods []Func) error {
 		if utf8.RuneCountInString(m.Recv) == 1 {
 			recvar += m.Recv
 		}
+		var ptr string
+		if m.Addr {
+			ptr = "*"
+		}
 		data := struct {
 			Recvar,
+			Ptr,
 			Recv,
 			Name,
 			Signature string
-		}{recvar, m.Recv, m.Name, m.Sig[4:]}
+		}{recvar, ptr, m.Recv, m.Name, m.Sig[4:]}
 		if err := tmpl.Execute(w, data); err != nil {
 			return err
 		}
