@@ -106,8 +106,13 @@ func (g *generator) parseSumDefs() error {
 func (g *generator) genMissingMethods() error {
 	for _, def := range g.defs {
 		for _, rhstype := range def.Rhs {
+			var addressable bool
+			if rhstype[0] == '*' {
+				addressable = true
+				rhstype = rhstype[1:]
+			}
 			rtyp := g.pkg.Scope().Lookup(rhstype).Type()
-			mds, err := g.missingMethods(g.pkg, rtyp, def.Type)
+			mds, err := g.missingMethods(g.pkg, addressable, rtyp, def.Type)
 			if err != nil {
 				return err
 			}
@@ -216,7 +221,16 @@ func scanDefs(info *types.Info, doc *ast.CommentGroup, ts *ast.TypeSpec) (def *S
 				}
 				offs := i
 
+				var ptrRec bool
+				if com[i] == '*' {
+					// accept a pointer receiver
+					ptrRec = true
+					i++
+				}
 				if ei := ident(com, i); ei == i {
+					if ptrRec {
+						return nil, fmt.Errorf("pointer receiver not followed by type name")
+					}
 					goto nextLine
 				} else {
 					i = ei
@@ -293,13 +307,13 @@ func (g *generator) sourceRepresentation(pkg *types.Package) types.Qualifier {
 	}
 }
 
-func (g *generator) missingMethods(pkg *types.Package, V types.Type, T *types.Interface) (methods []Func, err error) {
+func (g *generator) missingMethods(pkg *types.Package, addressable bool, V types.Type, T *types.Interface) (methods []Func, err error) {
 	tname := types.TypeString(V, types.RelativeTo(pkg))
 	var buf bytes.Buffer
 	n := T.NumMethods()
 	for i := 0; i < n; i++ {
 		m := T.Method(i)
-		obj, _, _ := types.LookupFieldOrMethod(V, false, m.Pkg(), m.Name())
+		obj, _, _ := types.LookupFieldOrMethod(V, addressable, m.Pkg(), m.Name())
 		f, _ := obj.(*types.Func)
 		if obj != nil && f == nil {
 			// make sure it is not a method with the same signature
@@ -315,6 +329,9 @@ func (g *generator) missingMethods(pkg *types.Package, V types.Type, T *types.In
 		if f == nil {
 			buf.WriteString("func")
 			types.WriteSignature(&buf, m.Type().(*types.Signature), g.sourceRepresentation(pkg))
+			if addressable {
+				tname = "*" + tname
+			}
 			methods = append(methods, Func{
 				Recv: tname,
 				Name: m.Name(),
@@ -358,6 +375,9 @@ func writeMethods(w io.Writer, methods []Func) error {
 	// write methods
 	for _, m := range methods {
 		r, _ := utf8.DecodeRuneInString(m.Recv)
+		if r == '*' {
+			r, _ = utf8.DecodeRuneInString(m.Recv[1:])
+		}
 		recvar := string(r)
 		if utf8.RuneCountInString(m.Recv) == 1 {
 			recvar += m.Recv

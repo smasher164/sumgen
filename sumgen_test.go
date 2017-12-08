@@ -63,6 +63,16 @@ var writeTests = []struct {
 			"func (日 日本語) B(a ...func(int)) { panic(\"default implementation\") }\n" +
 			"func (日 日本語) C(b ...interface{}) (a int) { panic(\"default implementation\") }\n",
 	},
+	{
+		in: []Func{
+			{"*日本語", "A", "func(a, b int) *int"},
+			{"*日本語", "B", "func(a ...func(int))"},
+			{"*日本語", "C", "func(b ...interface{}) (a int)"},
+		},
+		want: "func (日 *日本語) A(a, b int) *int { panic(\"default implementation\") }\n" +
+			"func (日 *日本語) B(a ...func(int)) { panic(\"default implementation\") }\n" +
+			"func (日 *日本語) C(b ...interface{}) (a int) { panic(\"default implementation\") }\n",
+	},
 }
 
 func TestWriteMethods(t *testing.T) {
@@ -114,6 +124,24 @@ type C struct {
 		want: []Func{
 			{"B", "a", "func()"},
 			{"C", "a", "func()"},
+		},
+	},
+	{
+		in: `
+//go:generate sumgen A = *B | *C
+type A interface {
+	a()
+}
+
+type B int
+
+type C struct {
+	int
+}
+`,
+		want: []Func{
+			{"*B", "a", "func()"},
+			{"*C", "a", "func()"},
 		},
 	},
 	{

@@ -8,7 +8,7 @@ Usage: `sumgen` is a tool intended for `go generate`. An example declaration of 
 ```
 package main
 
-//go:generate sumgen Expr = KeyValueExpr | CallExpr
+//go:generate sumgen Expr = KeyValueExpr | *CallExpr
 type Expr interface {
 	expr()
 }
@@ -37,7 +37,7 @@ Running `go generate` in the package directory will output the following to a fi
 package main
 
 func (K KeyValueExpr) expr() { panic("default implementation") }
-func (C CallExpr) expr()     { panic("default implementation") }
+func (C *CallExpr) expr()    { panic("default implementation") }
 
 ```
 
@@ -45,6 +45,7 @@ Each declaration follows the following structure:
 
 `//go:generate sumgen interface_name = concrete_typename { , concrete_typename }`.
 
-More than one declaration can be be made per interface_name.
+More than one declaration can be be made per `interface_name`.
+To make the `concrete_typename` a pointer receiver, simply add a `'*'` in front of it.
 
 Every declaration must be attached to the comment above the interface type's declaration.
