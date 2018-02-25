@@ -56,7 +56,7 @@ func (g *generator) parseAndTypeCheck(dir string) error {
 		return err
 	}
 
-	config := types.Config{Importer: importer.Default(), FakeImportC: true}
+	config := types.Config{IgnoreFuncBodies: true, Importer: importer.Default(), FakeImportC: true}
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Defs:  make(map[*ast.Ident]types.Object),
