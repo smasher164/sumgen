@@ -8,3 +8,4 @@
 !*.txt
 !*.md
 !.gitignore
+!go.mod
