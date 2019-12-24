@@ -21,8 +21,14 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+const msg = `declaration must satisfy the form
+	Def = LhsType "=" RhsType { "|" RhsType } .
+	LhsType = identifier .
+	RhsType = [ * ] identifier .
+`
+
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: sumgen \"InterfaceName = TypeNameA, *TypeNameB, ...\"\n")
+	fmt.Fprintf(os.Stderr, "usage: sumgen DECLARATION\n%s", msg)
 	os.Exit(2)
 }
 
@@ -72,11 +78,6 @@ func (m method) String() string {
 // LhsType = identifier .
 // RhsType = [ * ] identifier .
 func parseDef(s string) (sum def, err error) {
-	msg := "declaration must satisfy the form\n" +
-		"\tDef = LhsType \"=\" RhsType { \"|\" RhsType } .\n" +
-		"\tLhsType = identifier .\n" +
-		"\tRhsType = [ * ] identifier .\n"
-
 	// tokenize
 	var sc scanner.Scanner
 	sc.Init(strings.NewReader(s))
