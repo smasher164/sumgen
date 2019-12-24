@@ -1,0 +1,25 @@
+name: Test
+on: [push]
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.13.x, 1.14beta1]
+        platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v1
+      with:
+        go-version: ${{ matrix.go-version }}
+    - name: Setup Env
+      run: |
+        echo "::set-env name=GOPATH::$(go env GOPATH)"
+        echo "::add-path::$(go env GOPATH)/bin"
+      shell: bash
+    - name: Checkout code
+      uses: actions/checkout@v1
+    - name: Install sumgen
+      run: go install
+    - name: Test
+      run: go test ./...
